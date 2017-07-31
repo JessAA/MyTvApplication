@@ -8,6 +8,10 @@ import android.support.v17.leanback.app.PlaybackSupportFragment
 import android.support.v17.leanback.widget.*
 import android.support.v17.leanback.widget.ListRow
 import com.jalaraye.mytvapplication.model.Video
+import timber.log.Timber
+import android.support.v17.leanback.widget.ArrayObjectAdapter
+import com.jalaraye.mytvapplication.utils.getDuration
+import com.jalaraye.mytvapplication.utils.videoUrl
 
 
 /**
@@ -24,6 +28,8 @@ class PlaybackOverlayFragment : android.support.v17.leanback.app.PlaybackFragmen
     val UPDATE_PERIOD = 16
     var mHandler: Handler? = null
 
+    val SHOW_IMAGE = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -35,6 +41,8 @@ class PlaybackOverlayFragment : android.support.v17.leanback.app.PlaybackFragmen
         setUpRows()
     }
 
+    var mRowsAdapter: ArrayObjectAdapter? = null
+
     fun setUpRows() {
         val ps = ClassPresenterSelector()
         val playbackControlsRowPresenter: PlaybackControlsRowPresenter = PlaybackControlsRowPresenter(DetailsDescriptionPresenter())
@@ -42,13 +50,13 @@ class PlaybackOverlayFragment : android.support.v17.leanback.app.PlaybackFragmen
         ps.addClassPresenter(PlaybackControlsRow::class.java, playbackControlsRowPresenter)
         ps.addClassPresenter(ListRow::class.java, ListRowPresenter())
 
-        val mRowsAdapter = ArrayObjectAdapter(ps)
+        mRowsAdapter = ArrayObjectAdapter(ps)
 
         /*
          * Add PlaybackControlsRow to mRowsAdapter, which makes video control UI.
          * PlaybackControlsRow is supposed to be first Row of mRowsAdapter.
          */
-        addPlaybackControlsRow(mRowsAdapter)
+        addPlaybackControlsRow()
 
         /*
        * on Click()
@@ -92,14 +100,14 @@ class PlaybackOverlayFragment : android.support.v17.leanback.app.PlaybackFragmen
     lateinit var mFastForwardAction: PlaybackControlsRow.FastForwardAction
     lateinit var mRewindAction: PlaybackControlsRow.RewindAction
 
-    fun addPlaybackControlsRow(mRowsAdapter: ArrayObjectAdapter) {
+    fun addPlaybackControlsRow() {
         var v: Video = Video()
         v.title = "Title"
         v.videoId = "O"
         v.watId = "0"
 
         mPlaybackControlsRow = PlaybackControlsRow(v) //PlaybackControlsRow can take a video in parameter
-        mRowsAdapter.add(mPlaybackControlsRow)
+        mRowsAdapter?.add(mPlaybackControlsRow)
 
 
         val presenterSelector = ControlButtonPresenterSelector()
@@ -117,6 +125,7 @@ class PlaybackOverlayFragment : android.support.v17.leanback.app.PlaybackFragmen
         mPrimaryActionAdapter.add(mPlayPauseAction)
         mPrimaryActionAdapter.add(mFastForwardAction)
 
+        updatePlaybackRow()
     }
 
     fun notifyChanged(action: Action) {
@@ -199,10 +208,15 @@ class PlaybackOverlayFragment : android.support.v17.leanback.app.PlaybackFragmen
 
     fun getUpdatePeriod(): Int {
         if(mPlaybackControlsRow != null){
-            if (view == null || mPlaybackControlsRow.duration <= 0) return DEFAULT_UPDATE_PERIOD
+            if (view == null || (mPlaybackControlsRow as PlaybackControlsRow).duration <= 0) return DEFAULT_UPDATE_PERIOD
+        }
+        var durationTime = mPlaybackControlsRow?.duration
+        if(durationTime != null){
+            var durationAvg: Int = (durationTime / view.width).toInt()
+            return Math.max(UPDATE_PERIOD, durationAvg)
         }
 
-        return Math.max(UPDATE_PERIOD, (mPlaybackControlsRow?.duration?.div(view.width)) as Int)
+        return 0
     }
 
 
@@ -210,6 +224,19 @@ class PlaybackOverlayFragment : android.support.v17.leanback.app.PlaybackFragmen
         if (mHandler != null && mRunnable != null) {
             mHandler?.removeCallbacks(mRunnable)
             mRunnable = null
+        }
+    }
+
+    fun updatePlaybackRow() {
+        Timber.d("updatePlaybackRow")
+        if (mPlaybackControlsRow?.item != null) {
+            mRowsAdapter?.notifyArrayItemRangeChanged(0, 1)
+            /* total time is necessary to show video playing time progress bar */
+            val duration = getDuration(videoUrl)
+            Timber.d("Duration " + duration)
+            mPlaybackControlsRow?.duration = duration
+            mPlaybackControlsRow?.currentPosition = 0
+            mPlaybackControlsRow?.bufferedPosition = 0
         }
     }
 }
